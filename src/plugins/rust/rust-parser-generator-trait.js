@@ -95,8 +95,8 @@ const RustParserGeneratorTrait = {
 
     // Append return value.
     const returnValue = types.hasOwnProperty('__')
-      ? `SV::_${this._allTypes[types.__]}(__)`
-      : `__`;
+      ? `SV::_${this._allTypes[types.__]}(_0)`
+      : `_0`;
 
     action = action + `\n${returnValue}`;
 
@@ -163,7 +163,7 @@ const RustParserGeneratorTrait = {
       return { action: '', types };
     }
 
-    const typesRe = /\s*\|([^|]*)\|\s*->\s*(\w+);/g;
+    const typesRe = /\s*\|([^|]*)\|\s*->\s*([^;]+);/g;
     const typesData = typesRe.exec(action);
 
     if (typesData) {
@@ -238,7 +238,7 @@ const RustParserGeneratorTrait = {
     let action = (this._scopeVars(handler, context) || '').trim();
 
     if (!action) {
-      return 'let __ = SV::Undefined;';
+      return 'let _0 = SV::Undefined;';
     }
 
     // From parser hooks, append ; at the end.
@@ -275,7 +275,7 @@ const RustParserGeneratorTrait = {
       lexRulesArray.push(`Tokenizer::_lex_rule${i}`);
 
       let matcher = rule.getRawMatcher();
-      
+
       // why there is f**king escape for / ?
       matcher = matcher.replace("\\/", "/");
 
@@ -321,7 +321,7 @@ const RustParserGeneratorTrait = {
     return code
       .replace(/yytext/g, `self${context}.yytext`)
       .replace(/yyleng/g, `self${context}.yyleng`)
-      .replace(/__\s*=/g, `let __ =`)
+      .replace(/__\s*=/g, `let _0 =`)
       .replace(/yyloc/g, 'Loc::from_tokens_range');
   },
 
@@ -446,6 +446,13 @@ const RustParserGeneratorTrait = {
 
     this.writeData('RESULT_TYPE', `_${this._allTypes[resultType]}`);
 
+    const errorTypeData = /type\s+TError\s*=\s*([^;]+);/.exec(moduleInclude);
+    if (!errorTypeData) {
+      this.writeData('MAYBE_TERROR', `type TError = ();`);
+    } else {
+      this.writeData('MAYBE_TERROR', ``);
+    }
+
     // Parser hooks.
     const onParseBegin = moduleInclude.indexOf('fn on_parse_begin') !== -1
       ? 'on_parse_begin(self, string);'
@@ -454,14 +461,19 @@ const RustParserGeneratorTrait = {
     const onParseEnd = moduleInclude.indexOf('fn on_parse_end') !== -1
       ? 'on_parse_end(self, &result);'
       : '';
-    
+
     const onParseError = moduleInclude.indexOf('fn on_parse_error') !== -1
       ? 'on_parse_error(self, &token);'
       : 'self.tokenizer.panic_unexpected_token(token.value, token.start_line, token.start_column);';
+    
+    const onLexError = moduleInclude.indexOf('fn on_lex_error') !== -1
+      ? 'on_lex_error(self, &str_slice[0..1]);'
+      : 'self.panic_unexpected_token(&str_slice[0..1], self.current_line, self.current_column);';
 
     this.writeData('ON_PARSE_BEGIN_CALL', onParseBegin);
     this.writeData('ON_PARSE_END_CALL', onParseEnd);
     this.writeData('ON_PARSE_ERROR_CALL', onParseError);
+    this.writeData('ON_LEX_ERROR_CALL', onLexError);
     
     this.writeData('MODULE_INCLUDE', moduleInclude);
   },

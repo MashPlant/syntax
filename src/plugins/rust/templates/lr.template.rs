@@ -9,29 +9,20 @@ extern crate lazy_static;
 use regex::Regex;
 use std::collections::HashMap;
 
-/**
- * Stack value.
- */
+// Stack value.
 enum SV {
     Undefined,
     {{{SV_ENUM}}}
 }
 
-/**
- * Lex rules.
- */
+// Lex rules.
 static LEX_RULES: {{{LEX_RULES}}};
 
-/**
- * EOF value.
- */
+// EOF value.
 static EOF: &'static str = "$";
 
-/**
- * A macro for map literals.
- *
- * hashmap!{ 1 => "one", 2 => "two" };
- */
+// A macro for map literals.
+// usage: hashmap!{ 1 => "one", 2 => "two" };
 macro_rules! hashmap(
     { $($key:expr => $value:expr),+ } => {
         {
@@ -44,30 +35,21 @@ macro_rules! hashmap(
      };
 );
 
-/**
- * Unwraps a SV for the result. The result type is known from the grammar.
- */
+// Unwraps a SV for the result. The result type is known from the grammar.
 macro_rules! get_result {
     ($r:expr, $ty:ident) => (match $r { SV::$ty(v) => v, _ => unreachable!() });
 }
 
-/**
- * Pops a SV with needed enum value.
- */
+// Pops a SV with needed enum value.
 macro_rules! pop {
     ($s:expr, $ty:ident) => (get_result!($s.pop().unwrap(), $ty));
 }
 
-/**
- * Productions data.
- *
- * 0 - encoded non-terminal, 1 - length of RHS to pop from the stack
- */
+// Productions data.
+// 0 - encoded non-terminal, 1 - length of RHS to pop from the stack
 static PRODUCTIONS : {{{PRODUCTIONS}}};
 
-/**
- * Table entry.
- */
+// Table entry.
 enum TE {
     Accept,
 
@@ -82,23 +64,16 @@ enum TE {
 }
 
 lazy_static! {
-    /**
-     * Lexical rules grouped by lexer state (by start condition).
-     */
+    // Lexical rules grouped by lexer state (by start condition).
     static ref LEX_RULES_BY_START_CONDITIONS: HashMap<&'static str, Vec<i32>> = {{{LEX_RULES_BY_START_CONDITIONS}}};
 
-    /**
-     * Maps a string name of a token type to its encoded number (the first
-     * token number starts after all numbers for non-terminal).
-     */
+    // Maps a string name of a token type to its encoded number (the first
+    // token number starts after all numbers for non-terminal).
     static ref TOKENS_MAP: HashMap<&'static str, i32> = {{{TOKENS}}};
 
-    /**
-     * Parsing table.
-     *
-     * Vector index is the state number, value is a map
-     * from an encoded symbol to table entry (TE).
-     */
+    // Parsing table.
+    // Vector index is the state number, value is a map
+    // from an encoded symbol to table entry (TE).
     static ref TABLE: Vec<HashMap<i32, TE>>= {{{TABLE}}};
 }
 
@@ -108,6 +83,8 @@ lazy_static! {
 // Should include at least result type:
 //
 // type TResult = <...>;
+// 
+// You can specify TError = <...>, if not specified, it will be ()
 //
 // Can also include parsing hooks:
 //
@@ -115,10 +92,15 @@ lazy_static! {
 //     ...
 //   }
 //
-//   fn on_parse_begin(parser: &mut Parser, string: &'static str) {
+//   fn on_parse_end(parser: &mut Parser, string: &'static str) {
 //     ...
 //   }
-//
+//   
+//   fn on_parse_error(parser: &Parser, token: &Token) {
+//     ...
+//   } 
+
+{{{MAYBE_TERROR}}}
 
 {{{MODULE_INCLUDE}}}
 
@@ -129,35 +111,25 @@ lazy_static! {
 // ------------------------------------------------------------------
 // Parser.
 
-/**
- * Parser.
- */
 pub struct Parser {
-    /**
-     * Parsing stack: semantic values.
-     */
+    // Parsing stack: semantic values.
     values_stack: Vec<SV>,
 
-    /**
-     * Parsing stack: state numbers.
-     */
+    // Parsing stack: state numbers.
     states_stack: Vec<usize>,
 
-    /**
-     * Tokenizer instance.
-     */
+    // Tokenizer instance.
     tokenizer: Tokenizer,
+    
+    // errors
+    errors: Vec<TError>,
 
-    /**
-     * Semantic action handlers.
-     */
+    // Semantic action handlers.
     handlers: [fn(&mut Parser) -> SV; {{{PRODUCTION_HANDLERS_COUNT}}}],
 }
 
 impl Parser {
-    /**
-     * Creates a new Parser instance.
-     */
+    // Creates a new Parser instance.
     pub fn new() -> Parser {
         Parser {
             // Stacks.
@@ -165,14 +137,13 @@ impl Parser {
             states_stack: Vec::new(),
 
             tokenizer: Tokenizer::new(),
+            errors: Vec::new(),
 
             handlers: {{{PRODUCTION_HANDLERS_ARRAY}}}
         }
     }
 
-    /**
-     * Parses a string.
-     */
+    // Parses a string.
     pub fn parse(&mut self, string: &'static str) -> TResult {
         {{{ON_PARSE_BEGIN_CALL}}}
 
